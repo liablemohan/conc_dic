@@ -5,7 +5,9 @@ import csv
 english_term_pattern = r"<k1>(.*?)<k2>"
 pos_pattern = r"\{%((?!To).+?)%\}"               # POS tags excluding '{%To%}'
 sanskrit_pattern = r"{#(.*?)#}"                  # Sanskrit terms with symbols
-sanskrit_filter_pattern = r"\b([a-zA-Z]+H)(?=\s*-|,|\s*$)"  # Sanskrit terms ending in 'H'
+
+# Define allowed POS tags
+allowed_pos_tags = {"s.", "a.", "pron.", "adv.", "prep.", "v. a.", "v. n.", "p. p.", "part.", "conj."}
 
 # Function to process each entry
 def process_entry(entry_text):
@@ -15,22 +17,36 @@ def process_entry(entry_text):
     
     # Extract POS tags (excluding '{%To%}')
     pos_tags = re.findall(pos_pattern, entry_text)
-    
-    # Extract Sanskrit terms with their brackets and symbols intact
-    sanskrit_terms = re.findall(sanskrit_pattern, entry_text)
-    
-    # Filter each Sanskrit term using a loop and the sanskrit_filter_pattern
-    filtered_sanskrit_terms = []
-    for term in sanskrit_terms:
-        # Apply the filter pattern to each term
-        if re.search(sanskrit_filter_pattern, term) and not (term.startswith('-') or term.endswith('-')):
-            filtered_sanskrit_terms.append(term)
-    
-    # Format filtered Sanskrit terms with preserved brackets
-    sanskrit_terms_formatted = ", ".join(f"{{#{term}#}}" for term in filtered_sanskrit_terms)
+
+     # Filter POS tags to keep only the allowed ones
+    pos_tags_filtered = [tag for tag in pos_tags if tag.strip() in allowed_pos_tags]
+
+    # Process Sanskrit terms
+    sanskrit_terms = []
+    for term in re.findall(sanskrit_pattern, entry_text):
+        for word_group in term.split(','):
+            word_group = word_group.strip()
+            
+            # Exclude groups with hyphens and parentheses
+            if '(' in word_group or '-' in word_group:
+                if '-' in word_group:
+                    # Take only the first word before hyphen
+                    sanskrit_terms.append(word_group.split('-')[0].strip())
+            elif ' ' in word_group:
+                # Exclude multi-word phrases
+                continue
+            else:
+                # Add single-word terms
+                sanskrit_terms.append(word_group)
+
+    # Remove any empty entries from the Sanskrit terms list
+    sanskrit_terms = [term for term in sanskrit_terms if term]
+
+    # Concatenate filtered Sanskrit terms without extra commas
+    sanskrit_concatenated = f"{{#{'/'.join(sanskrit_terms)}#}}"
     
     # Return as a tuple
-    return (english_term, " | ".join(pos_tags), sanskrit_terms_formatted)
+    return (english_term, " | ".join(pos_tags_filtered), sanskrit_concatenated)
 
 # Main function to read from .txt file and write to .csv file
 def process_document(input_file, output_file):
@@ -56,7 +72,7 @@ def process_document(input_file, output_file):
 
 # File paths
 input_file = 'input2.txt'  # Input text file
-output_file = 'dict2.csv'   # Output CSV file
+output_file = 'dict4.csv'   # Output CSV file
 
 # Process the document and save to CSV
 process_document(input_file, output_file)
